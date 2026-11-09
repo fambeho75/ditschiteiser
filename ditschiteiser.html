@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ditschiteiser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+  :root {
+    --bg:      #f7f9fc;
+    --surface: #ffffff;
+    --card:    #f0f4f8;
+    --panel:   #e2e8f0;
+    --accent:  #818cf8;
+    --success: #34d399;
+    --danger:  #fb7185;
+    --text:    #1e293b;
+    --muted:   #64748b;
+    --border:  rgba(0,0,0,.08);
+    --radius:  6px;
+  }
+
+  /* Mode colour: indigo (digitize/calibrate) or green (measure) */
+  body {
+    --mode-color:     #818cf8;
+    --mode-color-a05: rgba(129,140,248,.05);
+    --mode-color-a12: rgba(129,140,248,.12);
+    --mode-color-a50: rgba(129,140,248,.5);
+  }
+  body[data-mode="measure"],
+  body[data-mode="measureCalibrate"] {
+    --mode-color:     #34d399;
+    --mode-color-a05: rgba(52,211,153,.05);
+    --mode-color-a12: rgba(52,211,153,.12);
+    --mode-color-a50: rgba(52,211,153,.5);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter Tight', 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Top bar ── */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    height: 46px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #topbar h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin-right: 4px; }
+  .sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+
+  .btn {
+    padding: 5px 12px;
+    border: none; border-radius: var(--radius);
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:hover { opacity: .82; }
+  .btn:active { transform: scale(.97); }
+  .btn-secondary    { background: var(--panel); color: var(--text); }
+  .btn-mode         { background: var(--mode-color); color: #fff; }
+  /* Fixed-colour mode buttons — independent of current mode theme */
+  .btn-digitize     { background: #818cf8; color: #fff; }
+  .btn-digitize.off { background: rgba(129,140,248,.15); color: #818cf8; }
+  .btn-measure      { background: #34d399; color: #fff; }
+  .btn-measure.off  { background: rgba(52,211,153,.18); color: #34d399; }
+  .btn:disabled     { opacity: .3; cursor: default; }
+
+  #clockDisplay {
+    margin-left: auto;
+    font-size: 13px; font-weight: 600; font-family: monospace;
+    color: var(--muted);
+  }
+
+  /* ── Main layout ── */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Canvas area ── */
+  #canvasWrap {
+    flex: 1; position: relative; overflow: hidden;
+    background: #eef1f5; cursor: crosshair;
+  }
+
+  #dropZone {
+    position: absolute; inset: 20px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    color: var(--muted);
+    border: 1.5px dashed rgba(0,0,0,.14); border-radius: 12px;
+    transition: border-color .2s, color .2s;
+  }
+  #dropZone.drag-over { border-color: var(--accent); color: var(--accent); }
+  #dropZone svg   { width: 44px; height: 44px; opacity: .35; }
+  #dropZone p     { font-weight: 500; }
+  #dropZone small { opacity: .5; }
+  #dropZone input { display: none; }
+  #dropZone label {
+    padding: 7px 18px; background: var(--panel); border-radius: var(--radius);
+    cursor: pointer; font-weight: 600; color: var(--text);
+    transition: background .15s;
+  }
+  #dropZone label:hover { background: var(--accent); color: #fff; }
+
+  #viewport  { position: absolute; inset: 0; transform-origin: 0 0; display: none; }
+  #theImage  { display: block; max-width: none; user-select: none; pointer-events: none; }
+  #overlay   { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+  #cursorInfo {
+    position: absolute; bottom: 10px; left: 10px;
+    background: rgba(0,0,0,.7); color: var(--mode-color);
+    font-size: 13px; padding: 3px 8px; border-radius: 4px;
+    pointer-events: none; display: none; font-family: monospace;
+  }
+
+  /* ── Magnifier ── */
+  #magnifier {
+    position: absolute; width: 160px; height: 160px;
+    border-radius: 8px; border: 1.5px solid #000;
+    box-shadow: 0 4px 24px rgba(0,0,0,.25);
+    pointer-events: none; display: none; z-index: 10; background: #eef1f5;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 272px; background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+
+  /* Guide card */
+  #guideCard {
+    margin: 10px 12px 4px; padding: 10px 12px;
+    background: var(--card); border-radius: var(--radius);
+    border-left: 2.5px solid var(--mode-color);
+    color: var(--muted); line-height: 1.55;
+    flex-shrink: 0; display: none;
+  }
+  #guideCard strong { color: var(--text); display: block; margin-bottom: 3px; }
+
+  /* Panel sections */
+  .panel { padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .panel-header h2 { font-size: inherit; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .badge { font-weight: 700; padding: 2px 7px; border-radius: 10px; background: var(--panel); color: var(--muted); transition: all .2s; }
+  .badge.needed  { color: var(--mode-color); background: var(--mode-color-a12); }
+  .badge.ready   { color: var(--mode-color); background: var(--mode-color-a12); }
+  .badge.neutral { color: var(--mode-color); background: var(--mode-color-a12); }
+
+  /* Axis scale selectors */
+  .scale-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 7px; color: var(--muted);
+  }
+  .scale-row span { flex-shrink: 0; }
+  .scale-row select {
+    flex: 1; background: var(--card); border: 1px solid rgba(0,0,0,.1);
+    border-radius: 4px; color: var(--text); padding: 2px 4px; cursor: pointer;
+    font-family: inherit; font-size: inherit;
+  }
+
+  /* Reference length panel */
+  #refLengthContent { color: var(--muted); padding: 2px 0 4px; line-height: 1.6; }
+
+  /* Reference slots */
+  .ref-slot {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 6px; border-radius: 6px;
+    border: 1.5px solid var(--border);
+    background: rgba(0,0,0,.02);
+    margin-bottom: 3px; transition: all .2s;
+  }
+  .ref-slot.active { border-color: var(--mode-color-a50); background: var(--mode-color-a05); }
+  .ref-slot.filled { border-color: rgba(0,0,0,.08); }
+  .slot-num {
+    width: 15px; height: 15px; border-radius: 50%;
+    background: var(--panel); color: var(--muted);
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all .2s;
+  }
+  .ref-slot.active .slot-num { background: var(--mode-color); color: #fff; }
+  .ref-slot.filled .slot-num { background: var(--mode-color); color: #fff; }
+  .slot-content { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+  .slot-hint   { color: var(--muted); font-style: italic; }
+  .slot-lbl    { color: var(--muted); white-space: nowrap; }
+  .slot-coords { font-family: monospace; color: var(--text); }
+  .slot-del {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; line-height: 1; padding: 0 2px; flex-shrink: 0;
+    transition: color .15s;
+  }
+  .slot-del:hover { color: var(--danger); }
+
+  /* Data list */
+  .data-header {
+    padding: 8px 12px 4px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); font-weight: 700;
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  }
+  #dataList {
+    flex: 1; overflow-y: auto; padding: 4px 12px 8px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .data-item {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,0,0,.03); border-radius: 5px; padding: 4px 8px;
+    font-family: monospace;
+  }
+  .data-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mode-color); flex-shrink: 0; }
+  .data-item .lbl { color: var(--muted); min-width: 20px; }
+  .data-item .coords { flex: 1; }
+  .data-item button {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; padding: 0 2px; transition: color .15s;
+  }
+  .data-item button:hover { color: var(--danger); }
+
+  /* Export */
+  #exportPanel {
+    padding: 10px 12px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 7px; flex-shrink: 0;
+  }
+  #exportPanel h2 { font-size: inherit; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .export-row { display: flex; gap: 6px; }
+  .export-row .btn { flex: 1; padding: 6px 8px; }
+
+  /* Toast */
+  #toastMsg {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--success); color: #000;
+    padding: 7px 18px; border-radius: 20px;
+    font-weight: 700;
+    transition: transform .3s ease; pointer-events: none; z-index: 1000;
+  }
+  #toastMsg.show { transform: translateX(-50%) translateY(0); }
+
+  /* Modal */
+  #modalOverlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.6); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  #modalOverlay.open { display: flex; }
+  #modal {
+    background: var(--surface); border: 1px solid rgba(0,0,0,.1);
+    border-radius: 10px; padding: 22px;
+    min-width: 300px; display: flex; flex-direction: column; gap: 14px;
+  }
+  #modal h3 { font-size: inherit; font-weight: 700; color: var(--text); }
+  #modal p  { color: var(--muted); line-height: 1.5; }
+  .modal-fields { display: flex; flex-direction: column; gap: 8px; }
+  .field-row { display: flex; align-items: center; gap: 8px; }
+  .field-row label { width: 80px; color: var(--muted); }
+  .field-row input {
+    flex: 1; background: var(--bg);
+    border: 1px solid rgba(0,0,0,.12); border-radius: 5px;
+    color: var(--text); padding: 6px 10px; font-family: monospace; font-size: inherit;
+  }
+  .field-row input:focus { outline: none; border-color: var(--accent); }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div id="topbar">
+  <h1>Ditschiteiser</h1>
+  <div class="sep"></div>
+  <button class="btn btn-secondary" id="loadNewBtn">Load image</button>
+  <button class="btn btn-secondary" id="clearPtsBtn">Clear</button>
+  <div class="sep" id="modeSep"></div>
+  <button class="btn btn-digitize off" id="digitizeModeBtn">Digitize</button>
+  <button class="btn btn-measure off" id="measureModeBtn">Measure</button>
+  <div id="clockDisplay"></div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Canvas area -->
+  <div id="canvasWrap">
+    <div id="dropZone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M3 15l4-4 4 4 4-6 4 6"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+      </svg>
+      <p>Drop an image here</p>
+      <small>PNG, JPG, GIF, BMP, WebP, SVG</small>
+      <label>Browse file<input type="file" id="fileInput" accept="image/*"></label>
+    </div>
+
+    <div id="viewport">
+      <img id="theImage" alt="">
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div id="cursorInfo"></div>
+    <canvas id="magnifier" width="160" height="160"></canvas>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <div id="guideCard"></div>
+
+    <!-- Reference points (digitize mode) -->
+    <div class="panel" id="refPanel" style="display:none">
+      <div class="panel-header">
+        <h2>Reference Points</h2>
+        <span class="badge needed" id="refBadge">0 / 3</span>
+      </div>
+      <div class="scale-row">
+        <span>X axis</span>
+        <select id="xScaleSelect">
+          <option value="linear">Linear</option>
+          <option value="log">Log₁₀</option>
+        </select>
+        <span>Y axis</span>
+        <select id="yScaleSelect">
+          <option value="linear">Linear</option>
+          <option value="log">Log₁₀</option>
+        </select>
+      </div>
+      <div id="refSlots"></div>
+    </div>
+
+    <!-- Reference length (measure mode) -->
+    <div class="panel" id="refLengthPanel" style="display:none">
+      <div class="panel-header">
+        <h2>Reference Length</h2>
+        <span class="badge needed" id="refLengthBadge">Not set</span>
+      </div>
+      <div id="refLengthContent"></div>
+    </div>
+
+    <!-- Data points / Measurements -->
+    <div class="data-header">
+      <span id="listTitle">Data Points</span>
+      <span class="badge neutral" id="ptCount" style="display:none">0</span>
+    </div>
+    <div id="dataList"></div>
+
+    <!-- Export -->
+    <div id="exportPanel">
+      <h2>Export</h2>
+      <div class="export-row">
+        <button class="btn btn-secondary" id="csvBtn" disabled>⬇ CSV</button>
+        <button class="btn btn-secondary" id="copyBtn" disabled>⎘ Copy</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modalOverlay">
+  <div id="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalDesc"></p>
+    <!-- Ref point fields -->
+    <div class="modal-fields" id="modalRefFields">
+      <div class="field-row">
+        <label>Label</label>
+        <input type="text" id="mLabel" placeholder="e.g. Origin">
+      </div>
+      <div class="field-row">
+        <label>X (world)</label>
+        <input type="number" id="mX" placeholder="0" step="any">
+      </div>
+      <div class="field-row">
+        <label>Y (world)</label>
+        <input type="number" id="mY" placeholder="0" step="any">
+      </div>
+    </div>
+    <!-- Reference length field -->
+    <div class="modal-fields" id="modalLengthFields" style="display:none">
+      <div class="field-row">
+        <label>Distance</label>
+        <input type="number" id="mDistance" placeholder="e.g. 50" step="any">
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="modalCancel">Cancel</button>
+      <button class="btn" style="background:var(--accent);color:#fff" id="modalOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastMsg"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const state = {
+  mode: 'load',         // 'load' | 'calibrate' | 'digitize' | 'measureCalibrate' | 'measure'
+  imgW: 0, imgH: 0,
+  xScale: 'linear',    // 'linear' | 'log'
+  yScale: 'linear',    // 'linear' | 'log'
+  refPoints:  [],      // max 3 — { px, py, wx, wy, label }
+  dataPoints: [],      // { px, py, wx, wy }
+  transform:  null,    // { a, b, c, d, e, f, warning } — affine: wx=a·px+b·py+c, wy=d·px+e·py+f
+  pendingRef: null,    // { px, py } — pixel location awaiting modal (ref point or seg end)
+  refSegAnchor: null,  // { px, py } — first click of measure calibration segment
+  refSegment:  null,   // { px1,py1,px2,py2, pixelDist, worldDist, scale }
+  measureAnchor: null, // { px, py } — first click of active measurement
+  measurements: [],    // { px1,py1,px2,py2, dist }
+  mousePos: null,      // { px, py } — live cursor
+  zoom: 1, panX: 0, panY: 0,
+};
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const dropZone        = document.getElementById('dropZone');
+const fileInput       = document.getElementById('fileInput');
+const viewport        = document.getElementById('viewport');
+const theImage        = document.getElementById('theImage');
+const overlay         = document.getElementById('overlay');
+const ctx             = overlay.getContext('2d');
+const canvasWrap      = document.getElementById('canvasWrap');
+const cursorInfo      = document.getElementById('cursorInfo');
+const refSlots        = document.getElementById('refSlots');
+const refBadge        = document.getElementById('refBadge');
+const refPanel        = document.getElementById('refPanel');
+const refLengthPanel  = document.getElementById('refLengthPanel');
+const refLengthBadge  = document.getElementById('refLengthBadge');
+const refLengthContent = document.getElementById('refLengthContent');
+const dataList        = document.getElementById('dataList');
+const ptCount         = document.getElementById('ptCount');
+const clearPtsBtn     = document.getElementById('clearPtsBtn');
+const loadNewBtn      = document.getElementById('loadNewBtn');
+const modeSep         = document.getElementById('modeSep');
+const digitizeModeBtn = document.getElementById('digitizeModeBtn');
+const measureModeBtn  = document.getElementById('measureModeBtn');
+const xScaleSelect    = document.getElementById('xScaleSelect');
+const yScaleSelect    = document.getElementById('yScaleSelect');
+const csvBtn          = document.getElementById('csvBtn');
+const copyBtn         = document.getElementById('copyBtn');
+const modalOverlay    = document.getElementById('modalOverlay');
+const modalTitle      = document.getElementById('modalTitle');
+const modalDesc       = document.getElementById('modalDesc');
+const mLabel          = document.getElementById('mLabel');
+const mX              = document.getElementById('mX');
+const mY              = document.getElementById('mY');
+const mDistance       = document.getElementById('mDistance');
+const modalRefFields  = document.getElementById('modalRefFields');
+const modalLengthFields = document.getElementById('modalLengthFields');
+const modalCancel     = document.getElementById('modalCancel');
+const modalOk         = document.getElementById('modalOk');
+const toastMsg        = document.getElementById('toastMsg');
+const clockDisplay    = document.getElementById('clockDisplay');
+const listTitle       = document.getElementById('listTitle');
+const guideCard       = document.getElementById('guideCard');
+const magnifier       = document.getElementById('magnifier');
+const magCtx          = magnifier.getContext('2d');
+const MAG_SIZE        = 160;
+const MAG_HALF        = 24;
+
+// ── Image loading ─────────────────────────────────────────────────────────────
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+loadNewBtn.addEventListener('click', () => {
+  Object.assign(state, {
+    refPoints: [], dataPoints: [], transform: null,
+    measurements: [], measureAnchor: null,
+    refSegment: null, refSegAnchor: null, pendingRef: null,
+    xScale: 'linear', yScale: 'linear',
+  });
+  xScaleSelect.value = 'linear'; yScaleSelect.value = 'linear';
+  viewport.style.display = 'none';
+  cursorInfo.style.display = 'none';
+  dropZone.style.display = '';
+  fileInput.value = '';
+  setMode('load');
+  renderRefSlots();
+  renderDataList();
+});
+
+function loadFile(file) {
+  // Decode into a staging image first — a corrupt file must not clobber
+  // the currently displayed image or its calibration state
+  const url = URL.createObjectURL(file);
+  const probe = new Image();
+  probe.onload = () => {
+    theImage.onload = () => URL.revokeObjectURL(url);
+    theImage.src = url;
+    state.imgW = probe.naturalWidth;
+    state.imgH = probe.naturalHeight;
+    overlay.width  = state.imgW;
+    overlay.height = state.imgH;
+    dropZone.style.display = 'none';
+    viewport.style.display = 'block';
+    fitToWindow();
+    Object.assign(state, {
+      refPoints: [], dataPoints: [], transform: null,
+      measurements: [], measureAnchor: null,
+      refSegment: null, refSegAnchor: null, pendingRef: null,
+      xScale: 'linear', yScale: 'linear',
+    });
+    xScaleSelect.value = 'linear'; yScaleSelect.value = 'linear';
+    renderRefSlots(); renderDataList(); renderAll();
+    setMode('calibrate');
+  };
+  probe.onerror = () => {
+    URL.revokeObjectURL(url);
+    fileInput.value = '';
+    toast('Could not load this file — unsupported or corrupt image', true);
+  };
+  probe.src = url;
+}
+
+// ── Coordinate transform (digitize mode) ─────────────────────────────────────
+function wxOf(p) { return state.xScale === 'log' ? Math.log10(p.wx) : p.wx; }
+function wyOf(p) { return state.yScale === 'log' ? Math.log10(p.wy) : p.wy; }
+
+function computeTransform() {
+  const pts = state.refPoints;
+  if (pts.length < 2) { state.transform = null; return; }
+
+  // Validate log-scale values before computing
+  if (state.xScale === 'log' && pts.some(p => p.wx <= 0)) {
+    state.transform = { a:0,b:0,c:0,d:0,e:0,f:0,
+      warning: 'Log₁₀ X axis requires all reference X values to be positive (> 0).' };
+    return;
+  }
+  if (state.yScale === 'log' && pts.some(p => p.wy <= 0)) {
+    state.transform = { a:0,b:0,c:0,d:0,e:0,f:0,
+      warning: 'Log₁₀ Y axis requires all reference Y values to be positive (> 0).' };
+    return;
+  }
+
+  const allSameWX = pts.every(p => Math.abs(wxOf(p) - wxOf(pts[0])) < 1e-9);
+  const allSameWY = pts.every(p => Math.abs(wyOf(p) - wyOf(pts[0])) < 1e-9);
+  const allSamePX = pts.every(p => Math.abs(p.px - pts[0].px) < 1e-6);
+  const allSamePY = pts.every(p => Math.abs(p.py - pts[0].py) < 1e-6);
+  let warning = null;
+  if      (allSameWX && allSameWY) warning = 'All reference points have the same world X and Y — calibration is impossible.';
+  else if (allSameWX) warning = 'All reference points share the same world X — X scale cannot be determined.';
+  else if (allSameWY) warning = 'All reference points share the same world Y — Y scale cannot be determined.';
+  else if (allSamePX) warning = 'All reference points are on the same vertical pixel column — X scale cannot be determined.';
+  else if (allSamePY) warning = 'All reference points are on the same horizontal pixel row — Y scale cannot be determined.';
+
+  if (pts.length >= 3) {
+    // Full affine transform: wx = a·px + b·py + c,  wy = d·px + e·py + f
+    // Solved exactly from the first 3 reference points via Cramer's rule.
+    // Guarantees that all 3 calibration points reproduce their entered world coords exactly.
+    const [p1, p2, p3] = pts;
+    const wx1 = wxOf(p1), wx2 = wxOf(p2), wx3 = wxOf(p3);
+    const wy1 = wyOf(p1), wy2 = wyOf(p2), wy3 = wyOf(p3);
+
+    const det = p1.px*(p2.py - p3.py) - p1.py*(p2.px - p3.px) + (p2.px*p3.py - p3.px*p2.py);
+    if (Math.abs(det) < 1e-9) {
+      warning = warning || 'The 3 reference points are collinear in pixel space — calibration is impossible.';
+      state.transform = { a:0,b:0,c:0,d:0,e:0,f:0, warning };
+      return;
+    }
+    const a = (wx1*(p2.py-p3.py) - p1.py*(wx2-wx3) + (wx2*p3.py - wx3*p2.py)) / det;
+    const b = (p1.px*(wx2-wx3)   - wx1*(p2.px-p3.px) + (p2.px*wx3 - p3.px*wx2)) / det;
+    const c = (p1.px*(p2.py*wx3-p3.py*wx2) - p1.py*(p2.px*wx3-p3.px*wx2) + wx1*(p2.px*p3.py-p3.px*p2.py)) / det;
+    const d = (wy1*(p2.py-p3.py) - p1.py*(wy2-wy3) + (wy2*p3.py - wy3*p2.py)) / det;
+    const e = (p1.px*(wy2-wy3)   - wy1*(p2.px-p3.px) + (p2.px*wy3 - p3.px*wy2)) / det;
+    const f = (p1.px*(p2.py*wy3-p3.py*wy2) - p1.py*(p2.px*wy3-p3.px*wy2) + wy1*(p2.px*p3.py-p3.px*p2.py)) / det;
+    state.transform = { a, b, c, d, e, f, warning };
+  } else {
+    // 2 points: axis-independent OLS (wx depends only on px, wy only on py)
+    const n = pts.length;
+    let spx=0, spy=0, swx=0, swy=0, spx2=0, spy2=0, spxwx=0, spywy=0;
+    for (const p of pts) {
+      const wx = wxOf(p), wy = wyOf(p);
+      spx += p.px; spy += p.py; swx += wx; swy += wy;
+      spx2 += p.px*p.px; spy2 += p.py*p.py;
+      spxwx += p.px*wx; spywy += p.py*wy;
+    }
+    const denX = n*spx2 - spx*spx;
+    const denY = n*spy2 - spy*spy;
+    const sx = Math.abs(denX) > 1e-9 ? (n*spxwx - spx*swx) / denX : 0;
+    const sy = Math.abs(denY) > 1e-9 ? (n*spywy - spy*swy) / denY : 0;
+    const ox = (swx - sx*spx) / n;
+    const oy = (swy - sy*spy) / n;
+    state.transform = { a:sx, b:0, c:ox, d:0, e:sy, f:oy, warning };
+  }
+}
+
+function pixelToWorld(px, py) {
+  // A transform carrying a warning yields no valid mapping — treat as absent
+  if (!state.transform || state.transform.warning) return null;
+  const { a, b, c, d, e, f } = state.transform;
+  const lx = a*px + b*py + c;
+  const ly = d*px + e*py + f;
+  return {
+    x: state.xScale === 'log' ? Math.pow(10, lx) : lx,
+    y: state.yScale === 'log' ? Math.pow(10, ly) : ly,
+  };
+}
+
+// When the transform changes, recompute stored world coords for existing data points
+function recomputeDataPoints() {
+  if (!state.transform || state.transform.warning) return;
+  state.dataPoints = state.dataPoints.map(p => {
+    const w = pixelToWorld(p.px, p.py);
+    return w ? { ...p, wx: w.x, wy: w.y } : p;
+  });
+}
+
+// Format a value for display/export — exponential notation for very small or
+// very large magnitudes, where toFixed(5) would lose all significant digits
+function fmtNum(v) {
+  const a = Math.abs(v);
+  if (v !== 0 && (a < 1e-4 || a >= 1e7)) return v.toExponential(5);
+  return v.toFixed(5);
+}
+
+// ── Fit to window ─────────────────────────────────────────────────────────────
+function applyViewport() {
+  viewport.style.transform = `translate(${state.panX}px,${state.panY}px) scale(${state.zoom})`;
+}
+function fitToWindow() {
+  const cw = canvasWrap.clientWidth, ch = canvasWrap.clientHeight;
+  state.zoom = Math.min(cw / state.imgW, ch / state.imgH, 1);
+  state.panX = (cw - state.imgW * state.zoom) / 2;
+  state.panY = (ch - state.imgH * state.zoom) / 2;
+  applyViewport();
+}
+window.addEventListener('resize', () => { if (viewport.style.display !== 'none') fitToWindow(); });
+
+// ── Mouse tracking ────────────────────────────────────────────────────────────
+window.addEventListener('mousemove', e => {
+  if (viewport.style.display === 'none') return;
+  const { px, py } = clientToImg(e.clientX, e.clientY);
+  const over = px >= 0 && py >= 0 && px <= state.imgW && py <= state.imgH;
+  if (over) {
+    cursorInfo.style.display = 'block';
+    // World coords only after a full 3-point calibration (mode flips to digitize).
+    const w = state.mode === 'digitize' ? pixelToWorld(px, py) : null;
+    if (w) {
+      cursorInfo.textContent = `px(${Math.round(px)}, ${Math.round(py)})  →  (${fmtNum(w.x)}, ${fmtNum(w.y)})`;
+    } else {
+      const anchor = state.measureAnchor || state.refSegAnchor;
+      if (anchor) {
+        const pixDist = Math.sqrt((px - anchor.px)**2 + (py - anchor.py)**2);
+        const info = state.refSegment
+          ? `d = ${(pixDist / state.refSegment.scale).toFixed(4)}`
+          : `${Math.round(pixDist)} px`;
+        cursorInfo.textContent = `px(${Math.round(px)}, ${Math.round(py)})  ${info}`;
+      } else {
+        cursorInfo.textContent = `px(${Math.round(px)}, ${Math.round(py)})`;
+      }
+    }
+    state.mousePos = { px, py };
+    if (state.mode !== 'load') {
+      drawMagnifier(px, py); positionMagnifier(e.clientX, e.clientY);
+      magnifier.style.display = 'block';
+    }
+    if ((state.mode === 'measure' && state.measureAnchor) ||
+        (state.mode === 'measureCalibrate' && state.refSegAnchor)) renderAll();
+  } else {
+    cursorInfo.style.display = 'none';
+    magnifier.style.display = 'none';
+  }
+});
+canvasWrap.addEventListener('mouseleave', () => {
+  magnifier.style.display = 'none'; cursorInfo.style.display = 'none';
+  state.mousePos = null;
+  if ((state.mode === 'measure' && state.measureAnchor) ||
+      (state.mode === 'measureCalibrate' && state.refSegAnchor)) renderAll();
+});
+
+function clientToImg(cx, cy) {
+  const r = canvasWrap.getBoundingClientRect();
+  return { px: (cx - r.left - state.panX) / state.zoom, py: (cy - r.top - state.panY) / state.zoom };
+}
+
+// ── Magnifier ─────────────────────────────────────────────────────────────────
+function drawMagnifier(imgPx, imgPy) {
+  const srcX = imgPx - MAG_HALF, srcY = imgPy - MAG_HALF, srcW = MAG_HALF * 2;
+  const scale = MAG_SIZE / srcW;
+  magCtx.fillStyle = '#eef1f5'; magCtx.fillRect(0, 0, MAG_SIZE, MAG_SIZE);
+  magCtx.imageSmoothingEnabled = false;
+  magCtx.drawImage(theImage, srcX, srcY, srcW, srcW, 0, 0, MAG_SIZE, MAG_SIZE);
+
+  state.refPoints.forEach(p => {
+    const mx = (p.px - srcX) * scale, my = (p.py - srcY) * scale;
+    if (mx < -12 || mx > MAG_SIZE + 12 || my < -12 || my > MAG_SIZE + 12) return;
+    magCtx.beginPath(); magCtx.arc(mx, my, 5, 0, Math.PI*2);
+    magCtx.strokeStyle = '#818cf8'; magCtx.lineWidth = 1.5; magCtx.stroke();
+  });
+  state.dataPoints.forEach(p => {
+    const mx = (p.px - srcX) * scale, my = (p.py - srcY) * scale;
+    if (mx < -8 || mx > MAG_SIZE + 8 || my < -8 || my > MAG_SIZE + 8) return;
+    magCtx.beginPath(); magCtx.arc(mx, my, 3, 0, Math.PI*2);
+    magCtx.fillStyle = '#818cf8'; magCtx.fill();
+  });
+  state.measurements.forEach(m => {
+    [[m.px1, m.py1], [m.px2, m.py2]].forEach(([mpx, mpy]) => {
+      const mx = (mpx - srcX) * scale, my = (mpy - srcY) * scale;
+      if (mx < -8 || mx > MAG_SIZE + 8 || my < -8 || my > MAG_SIZE + 8) return;
+      magCtx.beginPath(); magCtx.arc(mx, my, 3, 0, Math.PI*2);
+      magCtx.fillStyle = '#34d399'; magCtx.fill();
+    });
+  });
+  if (state.measureAnchor) {
+    const mx = (state.measureAnchor.px - srcX) * scale, my = (state.measureAnchor.py - srcY) * scale;
+    if (mx >= -8 && mx <= MAG_SIZE + 8 && my >= -8 && my <= MAG_SIZE + 8) {
+      magCtx.beginPath(); magCtx.arc(mx, my, 3, 0, Math.PI*2);
+      magCtx.fillStyle = '#34d399'; magCtx.fill();
+    }
+  }
+
+  const cx = MAG_SIZE / 2, cy = MAG_SIZE / 2;
+  magCtx.strokeStyle = 'rgba(0,0,0,.4)'; magCtx.lineWidth = 1;
+  magCtx.setLineDash([3, 3]);
+  magCtx.beginPath(); magCtx.moveTo(cx, 0); magCtx.lineTo(cx, MAG_SIZE);
+  magCtx.moveTo(0, cy); magCtx.lineTo(MAG_SIZE, cy); magCtx.stroke();
+  magCtx.setLineDash([]);
+
+  if (state.mode === 'digitize') {
+    magCtx.beginPath(); magCtx.arc(cx, cy, 6, 0, Math.PI*2);
+    magCtx.strokeStyle = '#818cf8'; magCtx.lineWidth = 2; magCtx.stroke();
+  } else if (state.mode === 'measure' || state.mode === 'measureCalibrate') {
+    magCtx.beginPath(); magCtx.arc(cx, cy, 6, 0, Math.PI*2);
+    magCtx.strokeStyle = '#34d399'; magCtx.lineWidth = 2; magCtx.stroke();
+  } else {
+    magCtx.beginPath(); magCtx.arc(cx, cy, 6, 0, Math.PI*2);
+    magCtx.strokeStyle = '#818cf8'; magCtx.lineWidth = 2; magCtx.stroke();
+  }
+}
+function positionMagnifier(cx, cy) {
+  const r = canvasWrap.getBoundingClientRect(), off = 18;
+  let l = cx - r.left + off, t = cy - r.top - MAG_SIZE - off;
+  if (l + MAG_SIZE > r.width)  l = cx - r.left - MAG_SIZE - off;
+  if (t < 0)                   t = cy - r.top + off;
+  magnifier.style.left = l + 'px'; magnifier.style.top = t + 'px';
+}
+
+// ── Click handler ─────────────────────────────────────────────────────────────
+canvasWrap.addEventListener('click', e => {
+  if (e.button !== 0) return;
+  if (viewport.style.display === 'none') return;
+  if (modalOverlay.classList.contains('open')) return;
+  const { px, py } = clientToImg(e.clientX, e.clientY);
+  if (px < 0 || py < 0 || px > state.imgW || py > state.imgH) return;
+
+  if (state.mode === 'calibrate' && state.refPoints.length < 3) {
+    state.pendingRef = { px, py };
+    openRefModal(state.refPoints.length + 1, px, py);
+    return;
+  }
+
+  if (state.mode === 'digitize') {
+    const w = pixelToWorld(px, py);
+    if (!w) return;
+    state.dataPoints.push({ px, py, wx: w.x, wy: w.y });
+    renderDataList(); renderAll(); updateExportButtons(); updateGuideCard();
+    return;
+  }
+
+  if (state.mode === 'measureCalibrate') {
+    if (!state.refSegAnchor) {
+      state.refSegAnchor = { px, py };
+      updateGuideCard(); updateRefLengthPanel(); renderAll();
+    } else {
+      // Reject near-zero segments: scale = pixelDist/worldDist would be ~0
+      // and every measurement would come out as Infinity
+      const segLen = Math.sqrt((px - state.refSegAnchor.px)**2 + (py - state.refSegAnchor.py)**2);
+      if (segLen < 2) {
+        toast('Points are too close — pick a longer reference segment', true);
+        return;
+      }
+      state.pendingRef = { px, py };
+      openLengthModal();
+    }
+    return;
+  }
+
+  if (state.mode === 'measure') {
+    if (!state.measureAnchor) {
+      state.measureAnchor = { px, py };
+      updateGuideCard(); renderAll();
+    } else {
+      const a = state.measureAnchor;
+      const pixelDist = Math.sqrt((px - a.px)**2 + (py - a.py)**2);
+      const dist = pixelDist / state.refSegment.scale;
+      state.measurements.push({ px1: a.px, py1: a.py, px2: px, py2: py, dist });
+      state.measureAnchor = null;
+      renderDataList(); renderAll(); updateGuideCard(); updateExportButtons(); updateModePill();
+    }
+  }
+});
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+let currentModalType = 'ref';
+
+function openRefModal(n, px, py) {
+  currentModalType = 'ref';
+  modalTitle.textContent = `Reference Point ${n} of 3`;
+  modalDesc.textContent  = `Pixel: (${Math.round(px)}, ${Math.round(py)}) — enter the real-world coordinates.`;
+  modalRefFields.style.display    = '';
+  modalLengthFields.style.display = 'none';
+  mLabel.value = `Ref ${n}`;
+  mX.value = ''; mY.value = '';
+  mX.style.borderColor = ''; mY.style.borderColor = '';
+  mX.placeholder = state.xScale === 'log' ? '> 0' : '0';
+  mY.placeholder = state.yScale === 'log' ? '> 0' : '0';
+  modalOverlay.classList.add('open');
+  setTimeout(() => mX.focus(), 50);
+}
+
+function openLengthModal() {
+  currentModalType = 'length';
+  modalTitle.textContent = 'Reference Length';
+  modalDesc.textContent  = 'Enter the real-world distance between the two clicked points.';
+  modalRefFields.style.display    = 'none';
+  modalLengthFields.style.display = '';
+  mDistance.value = '';
+  mDistance.style.borderColor = '';
+  modalOverlay.classList.add('open');
+  setTimeout(() => mDistance.focus(), 50);
+}
+
+function closeModal() { modalOverlay.classList.remove('open'); }
+
+function cancelModal() {
+  closeModal();
+  state.pendingRef = null;
+  if (currentModalType === 'length') {
+    state.refSegAnchor = null;
+    renderAll(); updateGuideCard(); updateRefLengthPanel();
+  }
+}
+modalCancel.addEventListener('click', cancelModal);
+modalOk.addEventListener('click', () => {
+  if (currentModalType === 'ref') confirmRef(); else confirmLength();
+});
+[mX, mY, mLabel].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') confirmRef(); }));
+mDistance.addEventListener('keydown', e => { if (e.key === 'Enter') confirmLength(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && modalOverlay.classList.contains('open')) {
+    e.preventDefault();
+    cancelModal();
+  }
+});
+
+function confirmRef() {
+  const wx = parseFloat(mX.value), wy = parseFloat(mY.value);
+  let valid = true;
+  if (isNaN(wx) || (state.xScale === 'log' && wx <= 0)) {
+    mX.style.borderColor = 'var(--danger)'; valid = false;
+  } else { mX.style.borderColor = ''; }
+  if (isNaN(wy) || (state.yScale === 'log' && wy <= 0)) {
+    mY.style.borderColor = 'var(--danger)'; valid = false;
+  } else { mY.style.borderColor = ''; }
+  if (!valid) return;
+
+  const label = mLabel.value.trim() || `Ref ${state.refPoints.length + 1}`;
+  state.refPoints.push({ ...state.pendingRef, wx, wy, label });
+  state.pendingRef = null;
+  computeTransform();
+  recomputeDataPoints();
+  closeModal();
+  renderRefSlots();
+  renderDataList();
+  renderAll();
+
+  syncModeWithTransform();
+  updateSteps();
+}
+
+function confirmLength() {
+  const dist = parseFloat(mDistance.value);
+  if (isNaN(dist) || dist <= 0) {
+    mDistance.style.borderColor = 'var(--danger)';
+    return;
+  }
+  const { px: px1, py: py1 } = state.refSegAnchor;
+  const { px: px2, py: py2 } = state.pendingRef;
+  const pixelDist = Math.sqrt((px2 - px1)**2 + (py2 - py1)**2);
+  state.refSegment = { px1, py1, px2, py2, pixelDist, worldDist: dist, scale: pixelDist / dist };
+  state.refSegAnchor = null;
+  state.pendingRef   = null;
+  closeModal();
+  renderAll();
+  setMode('measure');
+}
+
+// ── Axis scale selectors ──────────────────────────────────────────────────────
+// A scale change can validate or invalidate the calibration while the mode is
+// still the old one — keep mode and calibration validity in sync
+function syncModeWithTransform() {
+  const valid = state.refPoints.length >= 3 && state.transform && !state.transform.warning;
+  if      (state.mode === 'calibrate' && valid)  setMode('digitize');
+  else if (state.mode === 'digitize'  && !valid) setMode('calibrate');
+}
+function onScaleChange() {
+  state.xScale = xScaleSelect.value;
+  state.yScale = yScaleSelect.value;
+  computeTransform(); recomputeDataPoints(); syncModeWithTransform();
+  renderDataList(); renderAll(); updateSteps();
+}
+xScaleSelect.addEventListener('change', onScaleChange);
+yScaleSelect.addEventListener('change', onScaleChange);
+
+// ── Mode buttons ──────────────────────────────────────────────────────────────
+digitizeModeBtn.addEventListener('click', () => {
+  if (viewport.style.display === 'none') return;
+  const calibrated = state.refPoints.length >= 3 && state.transform && !state.transform.warning;
+  setMode(calibrated ? 'digitize' : 'calibrate');
+  renderDataList(); renderAll();
+});
+
+measureModeBtn.addEventListener('click', () => {
+  if (viewport.style.display === 'none') return;
+  if (state.refSegment) {
+    setMode('measure');
+  } else {
+    state.refSegAnchor = null;
+    setMode('measureCalibrate');
+  }
+  renderDataList(); renderAll();
+});
+
+clearPtsBtn.addEventListener('click', () => {
+  const inMeasure = state.mode === 'measure' || state.mode === 'measureCalibrate';
+  if (inMeasure) {
+    state.measurements = []; state.measureAnchor = null;
+  } else {
+    state.dataPoints = [];
+  }
+  renderDataList(); renderAll(); updateExportButtons(); updateModePill();
+});
+
+// ── Mode management ───────────────────────────────────────────────────────────
+function inMeasureMode() { return state.mode === 'measure' || state.mode === 'measureCalibrate'; }
+
+function setMode(mode) {
+  state.mode = mode;
+  document.body.dataset.mode = mode;
+  updateUI();
+}
+
+function updateUI() {
+  updateModePill();
+  updateExportButtons();
+  updateGuideCard();
+  updateRefBadge();
+  updateRefLengthPanel();
+  renderRefSlots();
+}
+
+function updateModePill() {
+  const inDigitize = state.mode === 'calibrate' || state.mode === 'digitize';
+  const inMeasure  = state.mode === 'measure'   || state.mode === 'measureCalibrate';
+  listTitle.textContent = inMeasure ? 'Measurements' : 'Data Points';
+  digitizeModeBtn.className = inDigitize ? 'btn btn-digitize' : 'btn btn-digitize off';
+  measureModeBtn.className  = inMeasure  ? 'btn btn-measure'  : 'btn btn-measure off';
+  // Update "Load image" label after first image is loaded
+  loadNewBtn.textContent = viewport.style.display !== 'none' ? 'Load new image' : 'Load image';
+}
+
+function updateExportButtons() {
+  // Digitize export requires a valid calibration so stale coords can't be exported
+  const enabled = inMeasureMode()
+    ? state.measurements.length > 0
+    : state.mode === 'digitize' && state.dataPoints.length > 0;
+  csvBtn.disabled  = !enabled;
+  copyBtn.disabled = !enabled;
+}
+
+function updateRefBadge() {
+  const n = state.refPoints.length;
+  refBadge.className   = n < 3 ? 'badge needed' : 'badge ready';
+  refBadge.textContent = n < 3 ? `${n} / 3` : '3 / 3 ✓';
+  refPanel.style.display       = (state.mode === 'calibrate' || state.mode === 'digitize') ? '' : 'none';
+  refLengthPanel.style.display = (state.mode === 'measure' || state.mode === 'measureCalibrate') ? '' : 'none';
+}
+
+function updateRefLengthPanel() {
+  if (state.mode !== 'measure' && state.mode !== 'measureCalibrate') return;
+  refLengthContent.innerHTML = '';
+  if (!state.refSegment) {
+    refLengthBadge.className   = 'badge needed';
+    refLengthBadge.textContent = 'Not set';
+    refLengthContent.textContent = state.refSegAnchor
+      ? 'Click the second point to complete the reference segment.'
+      : 'Click two points on a feature of known length.';
+  } else {
+    refLengthBadge.className   = 'badge ready';
+    refLengthBadge.textContent = '✓ Set';
+    const info = document.createElement('div');
+    info.style.cssText = 'color:#f59e0b;font-weight:600;margin-bottom:5px';
+    info.textContent = `1 unit = ${state.refSegment.scale.toFixed(4)} px`;
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary';
+    btn.style.cssText = 'width:100%;margin-top:6px;font-size:12px;padding:3px 8px';
+    btn.textContent = 'Recalibrate';
+    btn.addEventListener('click', () => {
+      state.refSegment = null; state.measureAnchor = null; state.refSegAnchor = null;
+      state.measurements = [];
+      setMode('measureCalibrate'); renderDataList(); renderAll();
+    });
+    refLengthContent.append(info, btn);
+  }
+}
+
+function updateSteps() {
+  updateGuideCard();
+  updateRefBadge();
+  updateRefLengthPanel();
+}
+
+function updateGuideCard() {
+  const hasImage = viewport.style.display !== 'none';
+  if (!hasImage) { guideCard.style.display = 'none'; return; }
+  guideCard.style.display = 'block';
+
+  if (state.mode === 'measureCalibrate') {
+    guideCard.className = '';
+    guideCard.innerHTML = !state.refSegAnchor
+      ? `<strong>Define reference length</strong>Click two points of a feature with known length.`
+      : `<strong>Click the second point</strong>Then enter the real-world length of this segment.`;
+    return;
+  }
+  if (state.mode === 'measure') {
+    guideCard.className = '';
+    guideCard.innerHTML = `<strong>Measure mode</strong>Select two points to measure the distance between them.`;
+    return;
+  }
+
+  const n = state.refPoints.length;
+  if (n >= 3 && state.transform && state.transform.warning) {
+    guideCard.className = '';
+    guideCard.innerHTML = `<strong>Calibration problem</strong>${state.transform.warning}`;
+    return;
+  }
+  if (n < 3) {
+    guideCard.className = '';
+    const logHint = (state.xScale === 'log' || state.yScale === 'log')
+      ? ' Log axes require positive (non-zero) reference values.' : '';
+    guideCard.innerHTML = `<strong>Place reference point ${n+1} of 3</strong>Click a known location on the image. A dialog will ask for its real-world coordinates.${logHint}`;
+    return;
+  }
+  guideCard.className = '';
+  guideCard.innerHTML = `<strong>Digitize mode</strong>Click anywhere on the image to record data points.`;
+}
+
+// ── Render canvas ─────────────────────────────────────────────────────────────
+const COLOR_DIGITIZE = '#818cf8';
+const COLOR_MEASURE  = '#34d399';
+const COLOR_REF_SEG  = '#f59e0b'; // amber — reference length, distinct from measurements
+
+function renderAll() {
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  const inDigitize = state.mode === 'calibrate' || state.mode === 'digitize';
+  const inMeasure  = state.mode === 'measure'   || state.mode === 'measureCalibrate';
+
+  if (inDigitize) {
+    state.refPoints.forEach((p, i) => drawMarker(p.px, p.py, COLOR_DIGITIZE, 6, p.label || `R${i+1}`, true));
+    state.dataPoints.forEach((p, i) => drawMarker(p.px, p.py, COLOR_DIGITIZE, 3.5, `${i+1}`, false));
+  }
+
+  if (inMeasure) {
+    // Reference segment in amber — clearly distinct from green measurements
+    if (state.refSegment) {
+      const s = state.refSegment;
+      drawMeasureLine(s.px1, s.py1, s.px2, s.py2, `${s.worldDist}`, false, COLOR_REF_SEG);
+    }
+
+    // Completed measurements in green
+    state.measurements.forEach(m => {
+      drawMeasureLine(m.px1, m.py1, m.px2, m.py2, m.dist.toFixed(4), false, COLOR_MEASURE);
+    });
+
+    // measureCalibrate: anchor dot + line to fixed second point (or live cursor)
+    if (state.mode === 'measureCalibrate' && state.refSegAnchor) {
+      const z = state.zoom;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(state.refSegAnchor.px, state.refSegAnchor.py, 5/z, 0, Math.PI*2);
+      ctx.fillStyle = COLOR_REF_SEG; ctx.globalAlpha = 1; ctx.fill();
+      ctx.restore();
+      const endpoint = state.pendingRef || state.mousePos;
+      if (endpoint) {
+        const d = Math.sqrt((endpoint.px - state.refSegAnchor.px)**2 + (endpoint.py - state.refSegAnchor.py)**2);
+        drawMeasureLine(state.refSegAnchor.px, state.refSegAnchor.py,
+                        endpoint.px, endpoint.py,
+                        Math.round(d) + ' px', !state.pendingRef, COLOR_REF_SEG);
+        if (state.pendingRef) {
+          ctx.save();
+          ctx.beginPath(); ctx.arc(state.pendingRef.px, state.pendingRef.py, 5/z, 0, Math.PI*2);
+          ctx.fillStyle = COLOR_REF_SEG; ctx.globalAlpha = 1; ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+
+    // measure: anchor dot + live dashed line (green — actual measurement)
+    if (state.mode === 'measure' && state.measureAnchor) {
+      const z = state.zoom;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(state.measureAnchor.px, state.measureAnchor.py, 5/z, 0, Math.PI*2);
+      ctx.fillStyle = COLOR_MEASURE; ctx.globalAlpha = 1; ctx.fill();
+      ctx.restore();
+      if (state.mousePos) {
+        const pixDist = Math.sqrt((state.mousePos.px - state.measureAnchor.px)**2 + (state.mousePos.py - state.measureAnchor.py)**2);
+        const liveLabel = state.refSegment
+          ? (pixDist / state.refSegment.scale).toFixed(4)
+          : Math.round(pixDist) + ' px';
+        drawMeasureLine(state.measureAnchor.px, state.measureAnchor.py,
+                        state.mousePos.px, state.mousePos.py,
+                        liveLabel, true, COLOR_MEASURE);
+      }
+    }
+  }
+}
+
+function drawMeasureLine(px1, py1, px2, py2, label, dashed, color) {
+  const z = state.zoom, c = color || '#34d399';
+  ctx.save();
+  ctx.strokeStyle = c; ctx.lineWidth = 1.5 / z; ctx.globalAlpha = 0.9;
+  if (dashed) ctx.setLineDash([6/z, 4/z]);
+  ctx.beginPath(); ctx.moveTo(px1, py1); ctx.lineTo(px2, py2); ctx.stroke();
+  ctx.setLineDash([]);
+  [[px1, py1], [px2, py2]].forEach(([x, y]) => {
+    ctx.beginPath(); ctx.arc(x, y, 4/z, 0, Math.PI*2);
+    ctx.fillStyle = c; ctx.globalAlpha = 1; ctx.fill();
+  });
+  if (label) {
+    const mx = (px1 + px2) / 2, my = (py1 + py2) / 2;
+    const fontSize = Math.round(15 / z);
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4/z;
+    ctx.fillStyle = c; ctx.globalAlpha = 1;
+    ctx.fillText(label, mx, my - 4/z);
+  }
+  ctx.restore();
+}
+
+function drawMarker(px, py, color, r, label, isRef) {
+  const z = state.zoom, rr = r / z;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5/z; ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.moveTo(px - rr*1.8, py); ctx.lineTo(px + rr*1.8, py);
+  ctx.moveTo(px, py - rr*1.8); ctx.lineTo(px, py + rr*1.8);
+  ctx.stroke();
+  ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI*2);
+  if (isRef) {
+    ctx.fillStyle = color + '25'; ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2/z; ctx.stroke();
+  } else { ctx.fillStyle = color; ctx.fill(); }
+  const fontSize = Math.round(15 / z);
+  ctx.font = `bold ${fontSize}px sans-serif`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 4/z;
+  ctx.fillText(label, px + rr + 3/z, py - rr*2 - 4/z);
+  ctx.restore();
+}
+
+// ── Reference slots ───────────────────────────────────────────────────────────
+function renderRefSlots() {
+  if (state.mode !== 'calibrate' && state.mode !== 'digitize') return;
+  refSlots.innerHTML = '';
+  const n = state.refPoints.length;
+  for (let i = 0; i < 3; i++) {
+    const el = document.createElement('div');
+    const filled = i < n;
+    const isNext = !filled && i === n && state.mode === 'calibrate';
+    el.className = 'ref-slot' + (filled ? ' filled' : isNext ? ' active' : '');
+
+    const numEl = document.createElement('div');
+    numEl.className = 'slot-num';
+    numEl.textContent = String(i + 1);
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'slot-content';
+
+    if (filled) {
+      const p = state.refPoints[i];
+      const xDisp = state.xScale === 'log' ? p.wx.toExponential(2) : p.wx;
+      const yDisp = state.yScale === 'log' ? p.wy.toExponential(2) : p.wy;
+
+      const lblEl = document.createElement('span');
+      lblEl.className = 'slot-lbl';
+      lblEl.textContent = p.label;
+
+      const coordsEl = document.createElement('span');
+      coordsEl.className = 'slot-coords';
+      coordsEl.textContent = `(${xDisp}, ${yDisp})`;
+
+      contentEl.append(lblEl, coordsEl);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'slot-del'; delBtn.title = 'Remove'; delBtn.textContent = '×';
+      delBtn.addEventListener('click', () => {
+        state.refPoints.splice(i, 1);
+        computeTransform();
+        recomputeDataPoints();
+        setMode('calibrate');
+        renderDataList(); renderAll();
+      });
+      el.append(numEl, contentEl, delBtn);
+    } else {
+      const hintEl = document.createElement('span');
+      hintEl.className = 'slot-hint';
+      hintEl.textContent = isNext ? 'Click on the image to place' : 'Waiting…';
+      contentEl.append(hintEl);
+      el.append(numEl, contentEl);
+    }
+    refSlots.appendChild(el);
+  }
+
+  // Recalibrate button — shown once all 3 slots are filled in digitize mode
+  if (state.mode === 'digitize' && n >= 3) {
+    const recalBtn = document.createElement('button');
+    recalBtn.className = 'btn btn-secondary';
+    recalBtn.style.cssText = 'width:100%;margin-top:6px;font-size:12px;padding:3px 8px';
+    recalBtn.textContent = 'Recalibrate';
+    recalBtn.addEventListener('click', () => {
+      state.refPoints = []; state.dataPoints = [];
+      computeTransform();
+      setMode('calibrate');
+      renderDataList(); renderAll(); updateExportButtons();
+    });
+    refSlots.appendChild(recalBtn);
+  }
+
+  updateRefBadge();
+  updateModePill();
+}
+
+// ── Data list ─────────────────────────────────────────────────────────────────
+function renderDataList() {
+  const inMeasure = state.mode === 'measure' || state.mode === 'measureCalibrate';
+  if (inMeasure) { renderMeasureList(); return; }
+
+  const n = state.dataPoints.length;
+  ptCount.textContent = n; ptCount.style.display = n > 0 ? '' : 'none';
+  dataList.innerHTML = '';
+  state.dataPoints.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'data-item';
+    el.innerHTML = `
+      <div class="data-dot"></div>
+      <span class="lbl">${i+1}</span>
+      <span class="coords">(${fmtNum(p.wx)}, ${fmtNum(p.wy)})</span>
+      <button title="Remove">✕</button>`;
+    el.querySelector('button').addEventListener('click', () => {
+      state.dataPoints.splice(i, 1);
+      renderDataList(); renderAll(); updateExportButtons(); updateModePill();
+    });
+    dataList.appendChild(el);
+  });
+}
+
+function renderMeasureList() {
+  const n = state.measurements.length;
+  ptCount.textContent = n; ptCount.style.display = n > 0 ? '' : 'none';
+  dataList.innerHTML = '';
+  state.measurements.forEach((m, i) => {
+    const el = document.createElement('div');
+    el.className = 'data-item';
+    el.innerHTML = `
+      <div class="data-dot" style="background:#34d399"></div>
+      <span class="lbl">${i+1}</span>
+      <span class="coords">${fmtNum(m.dist)}</span>
+      <button title="Remove">✕</button>`;
+    el.querySelector('button').addEventListener('click', () => {
+      state.measurements.splice(i, 1);
+      renderMeasureList(); renderAll(); updateExportButtons(); updateModePill();
+    });
+    dataList.appendChild(el);
+  });
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function buildCSV() {
+  if (inMeasureMode()) {
+    return ['Measurement,Distance',
+      ...state.measurements.map((m, i) => `${i+1},${fmtNum(m.dist)}`)
+    ].join('\n');
+  }
+  return ['Point,X,Y',
+    ...state.dataPoints.map((p, i) => `${i+1},${fmtNum(p.wx)},${fmtNum(p.wy)}`)
+  ].join('\n');
+}
+function buildCopyText() {
+  return buildCSV();
+}
+csvBtn.addEventListener('click', () => {
+  const blob = new Blob([buildCSV()], { type: 'text/csv' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: inMeasureMode() ? 'measurements.csv' : 'digitized_points.csv',
+  });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('CSV downloaded');
+});
+copyBtn.addEventListener('click', () => {
+  const text = buildCopyText();
+  navigator.clipboard.writeText(text)
+    .then(() => toast('Copied to clipboard!'))
+    .catch(() => {
+      const ta = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta); toast('Copied to clipboard!');
+    });
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, isError) {
+  toastMsg.style.background = isError ? 'var(--danger)' : '';
+  toastMsg.style.color      = isError ? '#fff' : '';
+  toastMsg.textContent = msg; toastMsg.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastMsg.classList.remove('show'), 2500);
+}
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  clockDisplay.textContent =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}  ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.body.dataset.mode = state.mode;
+renderRefSlots();
+updateSteps();
+</script>
+</body>
+</html>
