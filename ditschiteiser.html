@@ -95,6 +95,8 @@
     flex: 1; position: relative; overflow: hidden;
     background: #eef1f5; cursor: crosshair;
   }
+  #canvasWrap.panning { cursor: grabbing; }
+  #canvasWrap.pan-ready { cursor: grab; }
 
   #dropZone {
     position: absolute; inset: 20px;
@@ -283,6 +285,7 @@
   <div class="sep"></div>
   <button class="btn btn-secondary" id="loadNewBtn">Load image</button>
   <button class="btn btn-secondary" id="clearPtsBtn">Clear</button>
+  <button class="btn btn-secondary" id="fitBtn" title="Fit image to window (0 / F)">Fit</button>
   <div class="sep" id="modeSep"></div>
   <button class="btn btn-digitize off" id="digitizeModeBtn">Digitize</button>
   <button class="btn btn-measure off" id="measureModeBtn">Measure</button>
@@ -301,7 +304,7 @@
         <circle cx="8.5" cy="8.5" r="1.5"/>
       </svg>
       <p>Drop an image here</p>
-      <small>PNG, JPG, GIF, BMP, WebP, SVG</small>
+      <small>PNG, JPG, GIF, BMP, WebP, SVG — or Ctrl/Cmd+V to paste</small>
       <label>Browse file<input type="file" id="fileInput" accept="image/*"></label>
     </div>
 
@@ -441,6 +444,7 @@ const refLengthContent = document.getElementById('refLengthContent');
 const dataList        = document.getElementById('dataList');
 const ptCount         = document.getElementById('ptCount');
 const clearPtsBtn     = document.getElementById('clearPtsBtn');
+const fitBtn          = document.getElementById('fitBtn');
 const loadNewBtn      = document.getElementById('loadNewBtn');
 const modeSep         = document.getElementById('modeSep');
 const digitizeModeBtn = document.getElementById('digitizeModeBtn');
@@ -468,6 +472,26 @@ const magnifier       = document.getElementById('magnifier');
 const magCtx          = magnifier.getContext('2d');
 const MAG_SIZE        = 160;
 const MAG_HALF        = 24;
+const MIN_ZOOM        = 0.05;
+const MAX_ZOOM        = 40;
+
+// ── Session / gesture helpers ─────────────────────────────────────────────────
+function hasCalibOrPoints() {
+  return state.refPoints.length > 0 || state.dataPoints.length > 0 ||
+         state.measurements.length > 0 || !!state.refSegment;
+}
+function hasImageLoaded() {
+  return viewport.style.display !== 'none';
+}
+function confirmDiscard(msg) {
+  if (!hasCalibOrPoints()) return true;
+  return confirm(msg);
+}
+function clearIncompleteGesture() {
+  state.measureAnchor = null;
+  state.refSegAnchor  = null;
+  state.pendingRef    = null;
+}
 
 // ── Image loading ─────────────────────────────────────────────────────────────
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
@@ -479,6 +503,7 @@ dropZone.addEventListener('drop', e => {
 fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
 
 loadNewBtn.addEventListener('click', () => {
+  if (!confirmDiscard('Discard current calibration and points and load a new image?')) return;
   Object.assign(state, {
     refPoints: [], dataPoints: [], transform: null,
     measurements: [], measureAnchor: null,
@@ -488,6 +513,7 @@ loadNewBtn.addEventListener('click', () => {
   xScaleSelect.value = 'linear'; yScaleSelect.value = 'linear';
   viewport.style.display = 'none';
   cursorInfo.style.display = 'none';
+  magnifier.style.display = 'none';
   dropZone.style.display = '';
   fileInput.value = '';
   setMode('load');
@@ -568,8 +594,19 @@ function computeTransform() {
     const wy1 = wyOf(p1), wy2 = wyOf(p2), wy3 = wyOf(p3);
 
     const det = p1.px*(p2.py - p3.py) - p1.py*(p2.px - p3.px) + (p2.px*p3.py - p3.px*p2.py);
-    if (Math.abs(det) < 1e-9) {
-      warning = warning || 'The 3 reference points are collinear in pixel space — calibration is impossible.';
+    // Reject exact collinearity and near-flat triangles. Height relative to the
+    // longest side (and to image size) catches unstable affines where a 1 px
+    // click error maps to a huge world error.
+    const absDet = Math.abs(det);
+    const side = (a, b) => Math.hypot(a.px - b.px, a.py - b.py);
+    const maxSide = Math.max(side(p1, p2), side(p2, p3), side(p3, p1));
+    const height = maxSide > 0 ? absDet / maxSide : 0; // area = maxSide*height/2
+    const minDim = Math.max(1, Math.min(state.imgW, state.imgH));
+    const tooFlat = absDet < 1e-9 || height < 4 || height / minDim < 0.005;
+    if (tooFlat) {
+      warning = warning || (absDet < 1e-9
+        ? 'The 3 reference points are collinear in pixel space — calibration is impossible.'
+        : 'The 3 reference points are nearly collinear — calibration is unstable. Spread them out (e.g. both ends of the X axis and one far on Y).');
       state.transform = { a:0,b:0,c:0,d:0,e:0,f:0, warning };
       return;
     }
@@ -629,18 +666,108 @@ function fmtNum(v) {
   return v.toFixed(5);
 }
 
-// ── Fit to window ─────────────────────────────────────────────────────────────
+// ── Fit / zoom / pan ──────────────────────────────────────────────────────────
 function applyViewport() {
   viewport.style.transform = `translate(${state.panX}px,${state.panY}px) scale(${state.zoom})`;
 }
 function fitToWindow() {
+  if (!state.imgW || !state.imgH) return;
   const cw = canvasWrap.clientWidth, ch = canvasWrap.clientHeight;
-  state.zoom = Math.min(cw / state.imgW, ch / state.imgH, 1);
+  // Fit fully in view; allow enlarge for small screenshots (no hard cap at 1).
+  state.zoom = Math.min(cw / state.imgW, ch / state.imgH);
+  state.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom));
   state.panX = (cw - state.imgW * state.zoom) / 2;
   state.panY = (ch - state.imgH * state.zoom) / 2;
   applyViewport();
 }
-window.addEventListener('resize', () => { if (viewport.style.display !== 'none') fitToWindow(); });
+function zoomAtClient(clientX, clientY, factor) {
+  const r = canvasWrap.getBoundingClientRect();
+  const mx = clientX - r.left, my = clientY - r.top;
+  const imgX = (mx - state.panX) / state.zoom;
+  const imgY = (my - state.panY) / state.zoom;
+  const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, state.zoom * factor));
+  state.panX = mx - imgX * newZoom;
+  state.panY = my - imgY * newZoom;
+  state.zoom = newZoom;
+  applyViewport();
+  renderAll();
+}
+window.addEventListener('resize', () => {
+  if (viewport.style.display === 'none') return;
+  fitToWindow();
+  renderAll(); // Bug 1: marker sizes depend on zoom
+});
+
+// Wheel zoom around cursor
+canvasWrap.addEventListener('wheel', e => {
+  if (viewport.style.display === 'none') return;
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  zoomAtClient(e.clientX, e.clientY, factor);
+  // Refresh HUD / loupe under cursor
+  const { px, py } = clientToImg(e.clientX, e.clientY);
+  if (px >= 0 && py >= 0 && px <= state.imgW && py <= state.imgH) {
+    state.mousePos = { px, py };
+    if (state.mode !== 'load') {
+      drawMagnifier(px, py); positionMagnifier(e.clientX, e.clientY);
+      magnifier.style.display = 'block';
+    }
+  }
+}, { passive: false });
+
+// Pan: middle-drag, right-drag, or Space+left-drag
+let isPanning = false;
+let panMoved  = false;
+let suppressNextClick = false; // set when a pan gesture starts with the left button
+let panStart  = null; // { x, y, panX, panY }
+let spaceDown = false;
+
+function isTypingTarget(el) {
+  const t = el && el.tagName;
+  return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || (el && el.isContentEditable);
+}
+
+canvasWrap.addEventListener('mousedown', e => {
+  if (viewport.style.display === 'none') return;
+  if (modalOverlay.classList.contains('open')) return;
+  const panBtn = e.button === 1 || e.button === 2 || (e.button === 0 && spaceDown);
+  if (!panBtn) return;
+  e.preventDefault();
+  isPanning = true;
+  panMoved  = false;
+  if (e.button === 0) suppressNextClick = true;
+  panStart  = { x: e.clientX, y: e.clientY, panX: state.panX, panY: state.panY };
+  canvasWrap.classList.add('panning');
+  canvasWrap.classList.remove('pan-ready');
+});
+window.addEventListener('mousemove', e => {
+  if (!isPanning || !panStart) return;
+  const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
+  if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panMoved = true;
+  state.panX = panStart.panX + dx;
+  state.panY = panStart.panY + dy;
+  applyViewport();
+});
+window.addEventListener('mouseup', () => {
+  if (!isPanning) return;
+  isPanning = false;
+  panStart  = null;
+  canvasWrap.classList.remove('panning');
+  if (spaceDown) canvasWrap.classList.add('pan-ready');
+});
+canvasWrap.addEventListener('contextmenu', e => {
+  // Right-drag is used for pan — suppress the browser menu over the image.
+  if (viewport.style.display !== 'none') e.preventDefault();
+});
+canvasWrap.addEventListener('auxclick', e => {
+  // Prevent middle-click auto-scroll / open-link quirks
+  if (e.button === 1) e.preventDefault();
+});
+
+fitBtn.addEventListener('click', () => {
+  if (viewport.style.display === 'none') return;
+  fitToWindow(); renderAll();
+});
 
 // ── Mouse tracking ────────────────────────────────────────────────────────────
 window.addEventListener('mousemove', e => {
@@ -756,6 +883,10 @@ canvasWrap.addEventListener('click', e => {
   if (e.button !== 0) return;
   if (viewport.style.display === 'none') return;
   if (modalOverlay.classList.contains('open')) return;
+  // Ignore the click that ends a Space+left pan
+  if (suppressNextClick || panMoved || spaceDown) {
+    suppressNextClick = false; panMoved = false; return;
+  }
   const { px, py } = clientToImg(e.clientX, e.clientY);
   if (px < 0 || py < 0 || px > state.imgW || py > state.imgH) return;
 
@@ -856,6 +987,47 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && modalOverlay.classList.contains('open')) {
     e.preventDefault();
     cancelModal();
+    return;
+  }
+  if (isTypingTarget(e.target)) return;
+
+  if (e.code === 'Space' && !e.repeat) {
+    e.preventDefault();
+    spaceDown = true;
+    if (!isPanning && viewport.style.display !== 'none') {
+      canvasWrap.classList.add('pan-ready');
+    }
+    return;
+  }
+  // Fit to window
+  if ((e.key === '0' || e.key === 'f' || e.key === 'F') && hasImageLoaded()) {
+    e.preventDefault();
+    fitToWindow(); renderAll();
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    spaceDown = false;
+    canvasWrap.classList.remove('pan-ready');
+    if (!isPanning) canvasWrap.classList.remove('panning');
+  }
+});
+
+// ── Paste image (Ctrl/Cmd+V) ──────────────────────────────────────────────────
+document.addEventListener('paste', e => {
+  if (isTypingTarget(e.target)) return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const item of items) {
+    if (!item.type || !item.type.startsWith('image/')) continue;
+    e.preventDefault();
+    const file = item.getAsFile();
+    if (!file) return;
+    if (hasImageLoaded() || hasCalibOrPoints()) {
+      if (!confirm('Replace current image and discard calibration/points?')) return;
+    }
+    loadFile(file);
+    return;
   }
 });
 
@@ -921,6 +1093,7 @@ yScaleSelect.addEventListener('change', onScaleChange);
 // ── Mode buttons ──────────────────────────────────────────────────────────────
 digitizeModeBtn.addEventListener('click', () => {
   if (viewport.style.display === 'none') return;
+  clearIncompleteGesture();
   const calibrated = state.refPoints.length >= 3 && state.transform && !state.transform.warning;
   setMode(calibrated ? 'digitize' : 'calibrate');
   renderDataList(); renderAll();
@@ -928,10 +1101,10 @@ digitizeModeBtn.addEventListener('click', () => {
 
 measureModeBtn.addEventListener('click', () => {
   if (viewport.style.display === 'none') return;
+  clearIncompleteGesture();
   if (state.refSegment) {
     setMode('measure');
   } else {
-    state.refSegAnchor = null;
     setMode('measureCalibrate');
   }
   renderDataList(); renderAll();
@@ -940,17 +1113,22 @@ measureModeBtn.addEventListener('click', () => {
 clearPtsBtn.addEventListener('click', () => {
   const inMeasure = state.mode === 'measure' || state.mode === 'measureCalibrate';
   if (inMeasure) {
+    if (!state.measurements.length && !state.measureAnchor) return;
+    if (state.measurements.length && !confirm('Clear all measurements?')) return;
     state.measurements = []; state.measureAnchor = null;
   } else {
+    if (!state.dataPoints.length) return;
+    if (!confirm('Clear all data points?')) return;
     state.dataPoints = [];
   }
-  renderDataList(); renderAll(); updateExportButtons(); updateModePill();
+  renderDataList(); renderAll(); updateExportButtons(); updateModePill(); updateGuideCard();
 });
 
 // ── Mode management ───────────────────────────────────────────────────────────
 function inMeasureMode() { return state.mode === 'measure' || state.mode === 'measureCalibrate'; }
 
 function setMode(mode) {
+  if (mode !== state.mode) clearIncompleteGesture();
   state.mode = mode;
   document.body.dataset.mode = mode;
   updateUI();
@@ -1012,6 +1190,8 @@ function updateRefLengthPanel() {
     btn.style.cssText = 'width:100%;margin-top:6px;font-size:12px;padding:3px 8px';
     btn.textContent = 'Recalibrate';
     btn.addEventListener('click', () => {
+      if ((state.measurements.length || state.refSegment) &&
+          !confirm('Recalibrate length and clear all measurements?')) return;
       state.refSegment = null; state.measureAnchor = null; state.refSegAnchor = null;
       state.measurements = [];
       setMode('measureCalibrate'); renderDataList(); renderAll();
@@ -1040,7 +1220,8 @@ function updateGuideCard() {
   }
   if (state.mode === 'measure') {
     guideCard.className = '';
-    guideCard.innerHTML = `<strong>Measure mode</strong>Select two points to measure the distance between them.`;
+    guideCard.innerHTML = `<strong>Measure mode</strong>Select two points to measure the distance between them.`
+      + `<div style="margin-top:6px;opacity:.85">Scroll = zoom · Middle/right-drag or Space+drag = pan · 0/F = fit</div>`;
     return;
   }
 
@@ -1054,11 +1235,13 @@ function updateGuideCard() {
     guideCard.className = '';
     const logHint = (state.xScale === 'log' || state.yScale === 'log')
       ? ' Log axes require positive (non-zero) reference values.' : '';
-    guideCard.innerHTML = `<strong>Place reference point ${n+1} of 3</strong>Click a known location on the image. A dialog will ask for its real-world coordinates.${logHint}`;
+    guideCard.innerHTML = `<strong>Place reference point ${n+1} of 3</strong>Click a known location on the image. A dialog will ask for its real-world coordinates.${logHint}`
+      + `<div style="margin-top:6px;opacity:.85">Scroll = zoom · Middle/right-drag or Space+drag = pan · 0/F = fit · Ctrl/Cmd+V = paste</div>`;
     return;
   }
   guideCard.className = '';
-  guideCard.innerHTML = `<strong>Digitize mode</strong>Click anywhere on the image to record data points.`;
+  guideCard.innerHTML = `<strong>Digitize mode</strong>Click to record points.`
+    + `<div style="margin-top:6px;opacity:.85">Scroll = zoom · Middle/right-drag or Space+drag = pan · 0/F = fit · Ctrl/Cmd+V = paste</div>`;
 }
 
 // ── Render canvas ─────────────────────────────────────────────────────────────
@@ -1233,6 +1416,7 @@ function renderRefSlots() {
     recalBtn.style.cssText = 'width:100%;margin-top:6px;font-size:12px;padding:3px 8px';
     recalBtn.textContent = 'Recalibrate';
     recalBtn.addEventListener('click', () => {
+      if (!confirmDiscard('Recalibrate and clear all reference and data points?')) return;
       state.refPoints = []; state.dataPoints = [];
       computeTransform();
       setMode('calibrate');
