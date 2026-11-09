@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bgB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9aa5fb"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bgB)"/>
+  <!-- soft D watermark -->
+  <text x="512" y="580" text-anchor="middle" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="720" font-weight="800" fill="#ffffff" opacity="0.12">D</text>
+  <!-- plot card -->
+  <rect x="168" y="188" width="688" height="648" rx="56" fill="#ffffff"/>
+  <!-- axes -->
+  <g fill="none" stroke="#818cf8" stroke-width="32" stroke-linecap="round">
+    <path d="M280 700 L280 300"/>
+    <path d="M280 700 L760 700"/>
+  </g>
+  <!-- grid ticks (subtle) -->
+  <g stroke="#c7d2fe" stroke-width="12" stroke-linecap="round" opacity="0.9">
+    <path d="M280 420 H 300"/><path d="M280 540 H 300"/>
+    <path d="M420 700 V 680"/><path d="M560 700 V 680"/><path d="M700 700 V 680"/>
+  </g>
+  <!-- curve -->
+  <path d="M310 360 C 400 340, 450 480, 540 520 S 680 640, 740 620"
+        fill="none" stroke="#34d399" stroke-width="36" stroke-linecap="round"/>
+  <!-- dots -->
+  <circle cx="360" cy="352" r="26" fill="#34d399"/>
+  <circle cx="500" cy="490" r="26" fill="#34d399"/>
+  <circle cx="640" cy="600" r="26" fill="#34d399"/>
+  <!-- crosshair on mid point -->
+  <g transform="translate(500 490)">
+    <circle r="70" fill="none" stroke="#818cf8" stroke-width="26"/>
+    <circle r="20" fill="#818cf8"/>
+    <path d="M0 -108 V -84 M0 84 V 108 M-108 0 H -84 M84 0 H 108"
+          stroke="#6366f1" stroke-width="24" stroke-linecap="round"/>
+  </g>
+</svg>

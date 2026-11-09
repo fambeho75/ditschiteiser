@@ -1,3 +1,5 @@
+<img src="icon-512.png" width="96">
+
 # ditschiteiser
 
 A browser plot digitizer and measuring tool. Click an image to turn pixels into real-world coordinates with an affine calibration (linear or log₁₀ axes), or measure distances from a known reference length. Export the results as CSV or copy them to the clipboard.
@@ -32,3 +34,4 @@ The same page is also at [`ditschiteiser.html`](ditschiteiser.html).
 - **Mouse wheel** zooms around the cursor, from 0.05× to 40×.
 - **Middle-drag**, **right-drag**, or **Space+drag** pans the image.
 - **Fit**, or the **0** / **F** keys, fits the image to the window.
+- The sun/moon button in the top bar toggles light and dark. The first visit follows the system setting, and the theme is remembered in the browser.
