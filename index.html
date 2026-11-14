@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#818cf8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ditschiteiser">
+<link rel="preload" href="./BigShouldersDisplay-Variable.woff2" as="font" type="font/woff2" crossorigin>
 
 <script>
 // Apply theme before first paint to avoid flash
@@ -29,7 +30,8 @@
 <style>
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  button, input, select, textarea { font-family: inherit; font-size: inherit; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; font-weight: inherit; }
+  small { font-size: inherit; }
 
   :root, [data-theme="light"] { color-scheme: light; }
   [data-theme="dark"] { color-scheme: dark; }
@@ -52,7 +54,10 @@
     background: var(--bg);
     color: var(--text);
     font-family: var(--font);
-    font-size: var(--fs, 13px);
+    font-size: var(--fs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-synthesis: none;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -77,9 +82,9 @@
   #cursorInfo {
     position: absolute; bottom: 12px; left: 12px;
     background: var(--cursor-bg); color: var(--mode-color);
-    font-size: 12px; padding: 4px 9px; border-radius: var(--radius-sm, 4px);
+    font-size: var(--fs); padding: 4px 9px; border-radius: var(--radius-sm, 4px);
     pointer-events: none; display: none;
-    font-family: var(--font-mono, ui-monospace, monospace);
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
 
@@ -97,7 +102,7 @@
     transform: translateX(-50%) translateY(60px);
     background: var(--success); color: var(--toast-fg);
     padding: 7px 18px; border-radius: 999px;
-    font-weight: 600; font-size: 13px;
+    font-weight: 700; font-size: var(--fs);
     transition: transform .3s ease; pointer-events: none; z-index: 1000;
   }
   #toastMsg.show { transform: translateX(-50%) translateY(0); }
@@ -148,7 +153,7 @@
   .slot-content { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
   .slot-hint { color: var(--muted); font-style: italic; }
   .slot-lbl  { color: var(--muted); white-space: nowrap; }
-  .slot-coords { font-family: var(--font-mono, ui-monospace, monospace); color: var(--text); }
+  .slot-coords { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 
   :root, [data-theme="light"] {
     --bg: #e8eaef;
@@ -175,9 +180,9 @@
     --ref-amber: #d97706;
     --marker-label: #ffffff;
     --marker-shadow: #000000;
-    --font: Geist, Inter, "Segoe UI", system-ui, sans-serif;
-    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-    --fs: 13px;
+    --font: "Big Shoulders Display", sans-serif;
+    --font-mono: "Big Shoulders Display", sans-serif;
+    --fs: 16px;
     --glass: rgba(255,255,255,.70);
     --glass-border: rgba(255,255,255,.7);
     --glass-shadow: 0 10px 40px rgba(30, 34, 50, .12), 0 1px 0 rgba(255,255,255,.7) inset;
@@ -241,7 +246,7 @@
   }
   .tool-brand { padding-left: 8px; padding-right: 12px; gap: 8px; }
   .brand-icon { width: 22px; height: 22px; border-radius: 7px; display: block; }
-  #topbar h1 { font-size: 13.5px; font-weight: 600; letter-spacing: -.02em; }
+  #topbar h1 { font-size: var(--fs); font-weight: 900; letter-spacing: 0.05em; line-height: 1; text-transform: uppercase; }
   .sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 
   .btn {
@@ -250,8 +255,8 @@
     border-radius: 999px;
     background: transparent;
     color: var(--text);
-    font-size: 13px;
-    font-weight: 550;
+    font-size: var(--fs);
+    font-weight: 700;
   }
   .btn:hover { background: rgba(127,127,140,.12); }
   .btn-secondary { background: transparent; }
@@ -269,7 +274,7 @@
     border: none; border-radius: 999px; cursor: pointer;
   }
   #themeToggle:hover { color: var(--text); background: rgba(127,127,140,.12); }
-  #clockDisplay { padding: 0 10px 0 4px; font-size: 12px; font-weight: 500; font-family: var(--font-mono); }
+  #clockDisplay { padding: 0 10px 0 4px; font-size: var(--fs); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   #dropZone {
     position: absolute; inset: 86px 28px 28px;
@@ -283,14 +288,14 @@
   }
   #dropZone.drag-over { border-color: var(--accent); color: var(--accent); }
   #dropZone svg { width: 44px; height: 44px; opacity: .3; }
-  #dropZone p { font-weight: 600; color: var(--text); font-size: 15px; }
+  #dropZone p { font-weight: 800; color: var(--text); font-size: var(--fs); }
   #dropZone small { opacity: .7; }
   #dropZone label {
     margin-top: 4px;
     padding: 8px 18px;
     background: var(--text); color: var(--bg);
     border-radius: 999px;
-    cursor: pointer; font-weight: 600;
+    cursor: pointer; font-weight: 700;
   }
   #dropZone label:hover { background: var(--accent); color: #fff; }
   [data-theme="dark"] #dropZone label { color: #0a0b10; }
@@ -340,23 +345,23 @@
     color: var(--muted); line-height: 1.5;
     flex-shrink: 0; display: none;
   }
-  #guideCard strong { color: var(--text); display: block; margin-bottom: 2px; font-weight: 600; }
-  #guideCard div { font-size: 11px; }
+  #guideCard strong { color: var(--text); display: block; margin-bottom: 2px; font-weight: 800; }
+  #guideCard div { font-size: var(--fs); }
   #refSlots > .btn {
     width: auto !important; margin: 6px 2px 0 auto !important;
     display: block; background: transparent; border: none;
-    color: var(--muted); font-weight: 550; padding: 4px 2px !important;
+    color: var(--muted); font-weight: 700; padding: 4px 2px !important;
   }
   #refSlots > .btn:hover { color: var(--text); background: transparent; }
 
   .panel { padding: 8px 14px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .panel-header h2, #exportPanel h2, .data-header {
-    font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
-    color: var(--muted); font-weight: 600;
+    font-size: var(--fs); text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); font-weight: 800;
   }
   .badge {
-    font-weight: 600; font-size: 11px; padding: 2px 8px;
+    font-weight: 700; font-size: var(--fs); padding: 2px 8px;
     border-radius: 999px; background: rgba(127,127,140,.12); color: var(--muted);
   }
   .badge.needed, .badge.ready, .badge.neutral {
@@ -377,9 +382,9 @@
   }
   .ref-slot.active { border-color: var(--mode-color-a50); background: var(--mode-color-a05); }
   .slot-num {
-    width: 18px; height: 18px; border-radius: 50%;
+    width: 24px; height: 24px; border-radius: 50%;
     background: rgba(127,127,140,.16); color: var(--muted);
-    font-size: 10px; font-weight: 700;
+    font-size: var(--fs); font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
@@ -398,7 +403,7 @@
   .data-item {
     display: flex; align-items: center; gap: 7px;
     background: var(--data-bg); border-radius: 10px; padding: 4px 9px;
-    font-family: var(--font-mono); font-size: 12px;
+    font-family: var(--font-mono); font-size: var(--fs);
     font-variant-numeric: tabular-nums;
   }
   .data-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mode-color); flex-shrink: 0; }
@@ -424,17 +429,58 @@
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
   }
-  #modal h3 { font-size: 15px; font-weight: 600; letter-spacing: -.02em; color: var(--text); }
+  #modal h3 { font-size: var(--fs); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text); }
   #modal p  { color: var(--muted); line-height: 1.55; }
   .field-row label { width: 84px; color: var(--muted); }
   .field-row input {
     flex: 1; background: var(--card);
     border: 1px solid var(--input-border); border-radius: 10px;
     color: var(--text); padding: 7px 10px;
-    font-family: var(--font-mono); font-size: 13px;
+    font-family: var(--font-mono); font-size: var(--fs); font-variant-numeric: tabular-nums;
   }
 
   #magnifier { border-radius: 16px; --mag-radius: 16px; }
+
+
+  /* Self-hosted variable Big Shoulders Display — used for all UI text. */
+  @font-face {
+    font-family: "Big Shoulders Display";
+    src: url("./BigShouldersDisplay-Variable.woff2") format("woff2");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  /* Uniform 16px everywhere. Weight and tracking carry the hierarchy. */
+  #topbar h1 {
+    font-family: var(--font);
+    font-size: var(--fs);
+    font-weight: 900;
+    font-style: normal;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .panel-header h2,
+  #exportPanel h2,
+  #listTitle {
+    font-family: var(--font);
+    font-size: var(--fs);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .btn, #dropZone label, .badge, .slot-num, #toastMsg {
+    font-weight: 700;
+  }
+  .tool-cluster, .btn, #clockDisplay {
+    white-space: nowrap;
+  }
+  .slot-hint { font-style: normal; font-weight: 500; }
+  .data-item .lbl { min-width: 22px; }
+  .field-row label { width: 96px; font-weight: 600; }
+  .sep { height: 18px; }
 
 </style>
 </head>
@@ -1404,7 +1450,7 @@ function updateRefLengthPanel() {
     info.textContent = `1 unit = ${state.refSegment.scale.toFixed(4)} px`;
     const btn = document.createElement('button');
     btn.className = 'btn btn-secondary';
-    btn.style.cssText = 'width:100%;margin-top:6px;font-size:12px;padding:3px 8px';
+    btn.style.cssText = 'width:100%;margin-top:6px;font-size:var(--fs);padding:3px 8px';
     btn.textContent = 'Recalibrate';
     btn.addEventListener('click', () => {
       if ((state.measurements.length || state.refSegment) &&
@@ -1632,7 +1678,7 @@ function renderRefSlots() {
   if (state.mode === 'digitize' && n >= 3) {
     const recalBtn = document.createElement('button');
     recalBtn.className = 'btn btn-secondary';
-    recalBtn.style.cssText = 'width:100%;margin-top:6px;font-size:12px;padding:3px 8px';
+    recalBtn.style.cssText = 'width:100%;margin-top:6px;font-size:var(--fs);padding:3px 8px';
     recalBtn.textContent = 'Recalibrate';
     recalBtn.addEventListener('click', () => {
       if (!confirmDiscard('Recalibrate and clear all reference and data points?')) return;
