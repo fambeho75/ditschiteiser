@@ -741,25 +741,22 @@ dropZone.addEventListener('drop', e => {
   e.preventDefault(); dropZone.classList.remove('drag-over');
   if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
 });
-fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+fileInput.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  if (viewport.style.display !== 'none' &&
+      !confirmDiscard('Discard current calibration and points and load the new image?')) {
+    fileInput.value = '';
+    return;
+  }
+  loadFile(f);
+});
 
 loadNewBtn.addEventListener('click', () => {
-  if (!confirmDiscard('Discard current calibration and points and load a new image?')) return;
-  Object.assign(state, {
-    refPoints: [], dataPoints: [], transform: null,
-    measurements: [], measureAnchor: null,
-    refSegment: null, refSegAnchor: null, pendingRef: null,
-    xScale: 'linear', yScale: 'linear',
-  });
-  xScaleSelect.value = 'linear'; yScaleSelect.value = 'linear';
-  viewport.style.display = 'none';
-  cursorInfo.style.display = 'none';
-  magnifier.style.display = 'none';
-  dropZone.style.display = '';
+  // Open the file picker straight away; nothing is cleared until a new
+  // image has actually been chosen and decoded (loadFile resets state).
   fileInput.value = '';
-  setMode('load');
-  renderRefSlots();
-  renderDataList();
+  fileInput.click();
 });
 
 function loadFile(file) {
