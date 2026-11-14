@@ -490,6 +490,8 @@
   .tool-cluster, .btn, #clockDisplay {
     white-space: nowrap;
   }
+  #clockDisplay { white-space: pre; }
+  #clockDisplay .d { display: inline-block; width: 0.44em; text-align: center; }
   .slot-hint { font-style: normal; font-weight: 500; }
   .data-item .lbl { min-width: 22px; }
   .field-row label { width: 96px; font-weight: 600; }
@@ -1797,8 +1799,11 @@ function toast(msg, isError) {
 function updateClock() {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  clockDisplay.textContent =
+  const txt =
     `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}  ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  // The display font has no tabular figures, so give every digit a fixed-width
+  // cell; otherwise the clock changes width each second and nudges the toolbar.
+  clockDisplay.innerHTML = txt.replace(/\d/g, '<span class="d">$&</span>');
 }
 updateClock();
 setInterval(updateClock, 1000);
