@@ -304,6 +304,10 @@
     position: absolute;
     top: 74px; right: 14px; bottom: 14px;
     --sidebar-width: 304px;
+    /* Shared text inset: headings, help, rows, export buttons all start here.
+       Row/card backgrounds may extend outward by --row-outset. */
+    --panel-inset: 14px;
+    --row-outset: 8px;
     width: var(--sidebar-width);
     background: var(--glass);
     border: 1px solid var(--glass-border);
@@ -339,7 +343,8 @@
   body.sidebar-collapsed #sidebarToggle svg { transform: rotate(180deg); }
 
   #guideCard {
-    margin: 0 14px 2px; padding: 8px 12px;
+    margin: 0 calc(var(--panel-inset) - var(--row-outset)) 2px;
+    padding: 8px var(--row-outset);
     background: var(--card); border-radius: 14px;
     border-left: none;
     color: var(--muted); line-height: 1.5;
@@ -348,13 +353,13 @@
   #guideCard strong { color: var(--text); display: block; margin-bottom: 2px; font-weight: 800; }
   #guideCard div { font-size: var(--fs); }
   #refSlots > .btn {
-    width: auto !important; margin: 6px 2px 0 auto !important;
+    width: auto !important; margin: 6px 0 0 auto !important;
     display: block; background: transparent; border: none;
-    color: var(--muted); font-weight: 700; padding: 4px 2px !important;
+    color: var(--muted); font-weight: 700; padding: 4px 0 !important;
   }
   #refSlots > .btn:hover { color: var(--text); background: transparent; }
 
-  .panel { padding: 8px 14px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .panel { padding: 8px var(--panel-inset) 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .panel-header h2, #exportPanel h2, .data-header {
     font-size: var(--fs); text-transform: uppercase; letter-spacing: 0.08em;
@@ -375,12 +380,13 @@
 
   .ref-slot {
     display: flex; align-items: center; gap: 7px;
-    padding: 6px 8px; border-radius: 10px;
-    border: 1px solid var(--border);
+    margin: 0 calc(0px - var(--row-outset)) 5px;
+    padding: 6px var(--row-outset); border-radius: 10px;
+    border: none;
+    box-shadow: inset 0 0 0 1px var(--border);
     background: var(--slot-bg);
-    margin-bottom: 5px;
   }
-  .ref-slot.active { border-color: var(--mode-color-a50); background: var(--mode-color-a05); }
+  .ref-slot.active { box-shadow: inset 0 0 0 1px var(--mode-color-a50); background: var(--mode-color-a05); }
   .slot-num {
     width: 24px; height: 24px; border-radius: 50%;
     background: rgba(127,127,140,.16); color: var(--muted);
@@ -393,16 +399,18 @@
   }
 
   .data-header {
-    padding: 12px 14px 4px;
+    padding: 12px var(--panel-inset) 4px;
     display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
   }
   #dataList {
-    flex: 1; overflow-y: auto; padding: 4px 14px 8px;
+    flex: 1; overflow-y: auto; padding: 4px var(--panel-inset) 8px;
     display: flex; flex-direction: column; gap: 4px;
   }
   .data-item {
     display: flex; align-items: center; gap: 7px;
-    background: var(--data-bg); border-radius: 10px; padding: 4px 9px;
+    background: var(--data-bg); border-radius: 10px;
+    margin: 0 calc(0px - var(--row-outset));
+    padding: 4px var(--row-outset);
     font-family: var(--font-mono); font-size: var(--fs);
     font-variant-numeric: tabular-nums;
   }
@@ -411,7 +419,7 @@
   .data-item .coords { flex: 1; }
 
   #exportPanel {
-    padding: 8px 14px 12px; border-top: 1px solid var(--border);
+    padding: 8px var(--panel-inset) 12px; border-top: 1px solid var(--border);
     display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
   }
   .export-row { display: flex; gap: 6px; }
